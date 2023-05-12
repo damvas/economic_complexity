@@ -10,14 +10,33 @@
 <div class="container">
     <div class="row">
         <div class="col-md-6">
-            <div class="chart" id="treemap">
-                <script>
-                    var graphs = {{plot | safe}};
-                    Plotly.plot('treemap',graphs,{});
-                </script>
-            </div>
+            <div class="chart" id="treemap"></div>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var country = prompt('Enter a country:');
+        if (country !== null) {
+            var request = new XMLHttpRequest();
+            request.open('POST', '/plot', true);
+            request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            request.onload = function () {
+                if (request.status >= 200 && request.status < 400) {
+                    var plotJSON = request.responseText;
+                    var plotData = JSON.parse(plotJSON);
+                    Plotly.newPlot('treemap', plotData);
+                } else {
+                    console.error('Error fetching plot data');
+                }
+            };
+            request.onerror = function () {
+                console.error('Request failed');
+            };
+            request.send('country=' + encodeURIComponent(country));
+        }
+    });
+</script>
 </body>
 </html>

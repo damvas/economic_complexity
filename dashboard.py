@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly
 import json
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 input_path = 'input'
 
@@ -37,8 +37,8 @@ def download_country_data(country: str) -> pd.DataFrame:
     return df
 
 
-def create_plot():
-    df = download_country_data('brazil')
+def create_plot(country: str):
+    df = download_country_data(country)
     df['percent'] = (df['Trade Value']/ df['Trade Value'].sum())*100
     df['Trade Value m'] = df['Trade Value']/1000
     fig = px.treemap(df, path = ["Section", 'HS4'], values = 'Trade Value m', color = 'Section', custom_data=['percent'])
@@ -58,8 +58,17 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    fig = create_plot()
-    return render_template('index.html', plot = fig)
+    return render_template('index.html', plot=None)
+
+@app.route('/plot', methods=['GET', 'POST'])
+def plot():
+    if request.method == 'POST':
+        country = request.form.get('country')
+        fig = create_plot(country)
+        return fig
+    else:
+        return "Invalid request"
 
 if __name__ == '__main__':
     app.run()
+
