@@ -41,38 +41,43 @@ def download_all_country_data():
     for country in iso3['Country']:
         download_country_data(country)
 
-country = 'brazil'
-df = pd.read_csv(os.path.join(input_path,f'{country}.csv'))
-df = df.sort_values(by = 'Trade Value', ascending=False).reset_index(drop=True)
+country = "China"
+df = download_country_data(country)
 
-sections_df = pd.DataFrame(df.groupby(by = 'Section')['Trade Value'].sum())
+trade_sum = df['Trade Value'].sum()/10**9
+if trade_sum >= 1000:
+    trade_sum = trade_sum/10**3
+    trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'T'
+else:
+    trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'B'
 
-sections = sections_df.index
-colors = sns.color_palette('muted', n_colors=len(sections))
+df['percent'] = df['Trade Value']/ df['Trade Value'].sum()
 
-plt.figure(figsize=(20, 10))
-sizes = sections_df['Trade Value']/10**6
+fig = px.treemap(df, path = ["Section", 'HS4'], values = 'percent', color = 'Section', custom_data=['percent'])
 
-labels = sections_df.index
+fig.update_layout(
+                margin = dict(t=50, l=0, r=0, b=0),
+                autosize=False,
+                width=1050,
+                height=600,
+                title={
+                'text' : f'What does {country} export? (2021)',
+                'y' : 0.97,
+                'x' : 0.5
+                },
+                legend_title="Section", 
+                legend_traceorder="reversed",
 
-font_sizes = [min(max(math.ceil(size / max(sizes) * 60), 15), 60) for size in sizes]
+                annotations=[dict(
+                    x=0.5,
+                    y=1.02,
+                    xref='paper',
+                    yref='paper',
+                    showarrow=False,
+                    text=f"Total: {trade_sum}",
+                    font=dict(size=16)
+                )]
+)
 
-squarify.plot(sizes,
-            alpha=0.6,
-            pad=True,
-            color=colors)
-
-ax = plt.gca()
-for i, rectangle in enumerate(ax.patches):
-    label = labels[i]
-    font_size = font_sizes[i]
-    x, y = rectangle.xy
-    w, h = rectangle.get_width(), rectangle.get_height()
-    cx, cy = x + w/2, y + h/2
-    label_lines = '\n'.join(label.split(' '))
-    plt.annotate(label_lines, (cx, cy), fontsize=font_size, ha='center', va='center')
-
-plt.title(f'What does {country.title()} export? (2021)', fontsize = 50)
-plt.axis('off')
-plt.annotate('Source: OEC', xy=(0.1, -0.05), xycoords='axes fraction', ha='right', fontsize=30, color='black')
-plt.show()
+fig.update_layout()
+fig.show()
