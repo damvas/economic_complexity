@@ -1,21 +1,17 @@
 import pandas as pd
 import os
 import requests
-import matplotlib.pyplot as plt
-import squarify
-import seaborn as sns
-import math
+import plotly.express as px
 import numpy as np
 
 input_path = './input'
 
-def download_country_data(country: str) -> pd.DataFrame:
-    iso3 = pd.read_csv(os.path.join(os.getcwd(),'oec_iso3.csv'))
+def download_country_data(country: str, iso3: pd.DataFrame) -> pd.DataFrame:
     country = country.title()
     i = np.where(iso3['Country'] == country)[0][0]
     country_id = iso3.loc[i,'Country ID']
     country = iso3.loc[i,'Country']
-    print("Processing:", country)
+    # print("Processing:", country)
     url = "https://oec.world/olap-proxy/data"
     params = {
         "cube": "trade_i_baci_a_92",
@@ -36,48 +32,69 @@ def download_country_data(country: str) -> pd.DataFrame:
         print("Country:", country)
     return df
 
-def download_all_country_data():
-    iso3 = pd.read_csv(os.path.join(os.getcwd(),'oec_iso3.csv'))
+def download_all_country_data(iso3: pd.DataFrame):
     for country in iso3['Country']:
         download_country_data(country)
 
-country = "China"
-df = download_country_data(country)
+def get_trade_sum(df: pd.DataFrame) -> str:
+    trade_sum = df['Trade Value'].sum()
+    if trade_sum < 10**9:
+        trade_sum = trade_sum/10**6
+        trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'M'
+    elif (trade_sum >= 10**9) & (trade_sum < 10**12):
+        trade_sum = trade_sum/10**9
+        trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'B'
+    else:
+        trade_sum = trade_sum/10**12
+        trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'T'
+    return trade_sum
 
-trade_sum = df['Trade Value'].sum()/10**9
-if trade_sum >= 1000:
-    trade_sum = trade_sum/10**3
-    trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'T'
-else:
-    trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'B'
+def get_treemap(country: str, iso3: pd.DataFrame) -> None:
+    df = download_country_data(country, iso3)
+    trade_sum = get_trade_sum(df)
+    df['percent'] = df['Trade Value']/ df['Trade Value'].sum()
 
-df['percent'] = df['Trade Value']/ df['Trade Value'].sum()
+    fig = px.treemap(df, path = ["Section", 'HS4'], values = 'percent', color = 'Section', custom_data=['percent'])
 
-fig = px.treemap(df, path = ["Section", 'HS4'], values = 'percent', color = 'Section', custom_data=['percent'])
+    fig.update_layout(
+                    margin = dict(t=50, l=0, r=0, b=0),
+                    autosize=False,
+                    width=1050,
+                    height=600,
+                    title={
+                    'text' : f'Guess which country exports these products! (2021)',
+                    'y' : 0.97,
+                    'x' : 0.5
+                    },
+                    legend_title="Section", 
+                    legend_traceorder="reversed",
 
-fig.update_layout(
-                margin = dict(t=50, l=0, r=0, b=0),
-                autosize=False,
-                width=1050,
-                height=600,
-                title={
-                'text' : f'What does {country} export? (2021)',
-                'y' : 0.97,
-                'x' : 0.5
-                },
-                legend_title="Section", 
-                legend_traceorder="reversed",
+                    annotations=[dict(
+                        x=0.5,
+                        y=1.02,
+                        xref='paper',
+                        yref='paper',
+                        showarrow=False,
+                        text=f"Total: {trade_sum}",
+                        font=dict(size=16)
+                    )]
+    )
 
-                annotations=[dict(
-                    x=0.5,
-                    y=1.02,
-                    xref='paper',
-                    yref='paper',
-                    showarrow=False,
-                    text=f"Total: {trade_sum}",
-                    font=dict(size=16)
-                )]
-)
+    fig.update_layout()
+    fig.show()
 
-fig.update_layout()
-fig.show()
+def play(iso3: pd.DataFrame, max_attempts: int = 5) -> None:
+    country = pd.Series.sample(iso3['Country']).iloc[0]
+    get_treemap(country, iso3)
+    correct = False
+    attempts = 0
+    while not correct and attempts < max_attempts: 
+        answer = input('Guess the country: ')
+        if answer.lower() == country.lower():
+            print(f'Correct! The country is {country}.')
+            correct = True
+        else:
+            print('Incorrect. Try again.')
+            attempts += 1
+    if not correct:
+        print(f'Sorry, you have used up all {max_attempts} attempts. The country was {country}.')
