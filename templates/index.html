@@ -15,27 +15,72 @@
     </div>
 </div>
 
+<div id="inputContainer" class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <label for="countryInput">Enter a country:</label>
+            <input type="text" id="countryInput" />
+            <button id="submitBtn">Submit</button>
+        </div>
+    </div>
+</div>
+
+<div id="countryContainer" class="container">
+    <h3>Prompted Countries:</h3>
+    <div class="row">
+        <div class="col-md-2">
+            <div class="country-box"></div>
+        </div>
+        <div class="col-md-2">
+            <div class="country-box"></div>
+        </div>
+        <div class="col-md-2">
+            <div class="country-box"></div>
+        </div>
+        <div class="col-md-2">
+            <div class="country-box"></div>
+        </div>
+        <div class="col-md-2">
+            <div class="country-box"></div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        var country = prompt('Enter a country:');
-        if (country !== null) {
-            var request = new XMLHttpRequest();
-            request.open('POST', '/plot', true);
-            request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-            request.onload = function () {
-                if (request.status >= 200 && request.status < 400) {
-                    var plotJSON = request.responseText;
-                    var plotData = JSON.parse(plotJSON);
-                    Plotly.newPlot('treemap', plotData);
-                } else {
-                    console.error('Error fetching plot data');
-                }
-            };
-            request.onerror = function () {
-                console.error('Request failed');
-            };
-            request.send('country=' + encodeURIComponent(country));
-        }
+        var submitBtn = document.getElementById('submitBtn');
+        var countryInput = document.getElementById('countryInput');
+        var treemap = document.getElementById('treemap');
+        var inputContainer = document.getElementById('inputContainer');
+        var countryBoxes = document.getElementsByClassName('country-box');
+        var boxIndex = 0;
+
+        submitBtn.addEventListener('click', function () {
+            var country = countryInput.value.trim();
+            if (country !== '') {
+                var request = new XMLHttpRequest();
+                request.open('POST', '/plot', true);
+                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+                request.onload = function () {
+                    if (request.status >= 200 && request.status < 400) {
+                        var plotJSON = request.responseText;
+                        var plotData = JSON.parse(plotJSON);
+                        Plotly.newPlot(treemap, plotData);
+                        countryBoxes[boxIndex].textContent = country; // Store the prompted country in the current box
+                        boxIndex = (boxIndex + 1) % countryBoxes.length; // Move to the next box or wrap around to the first box
+                        countryInput.value = ''; // Clear the input field
+                        inputContainer.style.display = 'block'; // Display the input container again
+                    } else {
+                        console.error('Error fetching plot data');
+                    }
+                };
+                request.onerror = function () {
+                    console.error('Request failed');
+                };
+                request.send('country=' + encodeURIComponent(country));
+                inputContainer.style.display = 'none'; // Hide the input container after submission
+            }
+        });
     });
 </script>
 </body>
