@@ -1,12 +1,5 @@
-import pandas as pd
-import os
-import requests
-import plotly.express as px
-import numpy as np
-
-input_path = './input'
-
-def download_country_data(country: str, iso3: pd.DataFrame) -> pd.DataFrame:
+def download_country_data(country: str) -> pd.DataFrame:
+    iso3 = pd.read_csv(os.path.join(os.getcwd(),'oec_iso3.csv'))
     country = country.title()
     i = np.where(iso3['Country'] == country)[0][0]
     country_id = iso3.loc[i,'Country ID']
@@ -26,15 +19,13 @@ def download_country_data(country: str, iso3: pd.DataFrame) -> pd.DataFrame:
     if response.status_code == 200:
         data = response.json()
         df = pd.DataFrame(data['data'])
-        df.to_csv(os.path.join(input_path,f'{country.lower()}.csv'))
+        df['percent'] = (df['Trade Value']/ df['Trade Value'].sum())*100
+        df['Trade Value m'] = df['Trade Value']/1000
+        # df.to_csv(os.path.join(input_path,f'{country.lower()}.csv'))
     else:
         print("Request failed with status code:", response.status_code)
         print("Country:", country)
     return df
-
-def download_all_country_data(iso3: pd.DataFrame):
-    for country in iso3['Country']:
-        download_country_data(country)
 
 def get_trade_sum(df: pd.DataFrame) -> str:
     trade_sum = df['Trade Value'].sum()
@@ -49,43 +40,47 @@ def get_trade_sum(df: pd.DataFrame) -> str:
         trade_sum = 'US$ ' + str(trade_sum.round(1)) + 'T'
     return trade_sum
 
-def get_treemap(country: str, iso3: pd.DataFrame) -> None:
-    df = download_country_data(country, iso3)
+def create_plot(df):
     trade_sum = get_trade_sum(df)
-    df['percent'] = df['Trade Value']/ df['Trade Value'].sum()
-
-    fig = px.treemap(df, path = ["Section", 'HS4'], values = 'percent', color = 'Section', custom_data=['percent'])
-
+    fig = px.treemap(df, path=["Section", 'HS4'], values='Trade Value m', color='Section', custom_data=['percent'])
+    fig.update_traces(textinfo='label+text+value+percent entry', textfont=dict(color='white', size=20))
     fig.update_layout(
-                    margin = dict(t=50, l=0, r=0, b=0),
-                    autosize=False,
-                    width=1050,
-                    height=600,
-                    title={
-                    'text' : f'Guess which country exports these products! (2021)',
-                    'y' : 0.97,
-                    'x' : 0.5
-                    },
-                    legend_title="Section", 
-                    legend_traceorder="reversed",
+        margin=dict(t=50, l=0, r=0, b=0),  # Adjust the top margin value as needed
+        autosize=False,
+        width=1100,
+        height=300,
+        legend_title="Section",
+        legend_traceorder="reversed",
+        title=dict(
+            text=f"Total: {trade_sum}",
+            x=0.5
+    ))
 
-                    annotations=[dict(
-                        x=0.5,
-                        y=1.02,
-                        xref='paper',
-                        yref='paper',
-                        showarrow=False,
-                        text=f"Total: {trade_sum}",
-                        font=dict(size=16)
-                    )]
-    )
-
-    fig.update_layout()
     fig.show()
+
+def get_country_coordinates(country):
+    geolocator = Nominatim(user_agent="distance_app")
+    location = geolocator.geocode(country)
+    return (location.latitude, location.longitude)
+
+def calculate_distance_and_direction(country1, country2):
+    coordinates1 = get_country_coordinates(country1)
+    coordinates2 = get_country_coordinates(country2)
+    distance = geodesic(coordinates1, coordinates2).kilometers
+    geod = Geodesic.WGS84
+    result = geod.Inverse(coordinates1[0], coordinates1[1], coordinates2[0], coordinates2[1])
+    direction = result["azi1"]
+    return distance, direction
+
+def degrees_to_cardinal(direction):
+    directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    index = round(direction / 22.5) % 16
+    return directions[index]
 
 def play(iso3: pd.DataFrame, max_attempts: int = 5) -> None:
     country = pd.Series.sample(iso3['Country']).iloc[0]
-    get_treemap(country, iso3)
+    df = download_country_data(country)
+    create_plot(df)
     correct = False
     attempts = 0
     while not correct and attempts < max_attempts: 
@@ -94,7 +89,13 @@ def play(iso3: pd.DataFrame, max_attempts: int = 5) -> None:
             print(f'Correct! The country is {country}.')
             correct = True
         else:
-            print('Incorrect. Try again.')
+            distance, direction = calculate_distance_and_direction(answer.lower(), country.lower())
+            cardinal_direction = degrees_to_cardinal(direction)
+            print(f'Incorrect. Go {cardinal_direction}.')
             attempts += 1
     if not correct:
-        print(f'Sorry, you have used up all {max_attempts} attempts. The country was {country}.')
+        print(f'Game over. The country was {country}.')
+        
+iso3 = pd.read_csv(r'oec_iso3.csv')
+subset = iso3.nlargest(10,'Trade Value')
+play(subset, max_attempts=1)
