@@ -1,3 +1,12 @@
+import pandas as pd
+import os
+import requests
+import plotly.express as px
+import numpy as np
+from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
+from geographiclib.geodesic import Geodesic
+
 def download_country_data(country: str) -> pd.DataFrame:
     iso3 = pd.read_csv(os.path.join(os.getcwd(),'oec_iso3.csv'))
     country = country.title()
@@ -95,7 +104,6 @@ def play(iso3: pd.DataFrame, max_attempts: int = 5) -> None:
             attempts += 1
     if not correct:
         print(f'Game over. The country was {country}.')
-        
-iso3 = pd.read_csv(r'oec_iso3.csv')
+
+iso3 = pd.read_csv(os.path.join(os.getcwd(),'oec_iso3.csv'))
 subset = iso3.nlargest(10,'Trade Value')
-play(subset, max_attempts=1)
